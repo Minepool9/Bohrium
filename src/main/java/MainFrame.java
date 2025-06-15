@@ -21,7 +21,7 @@ public class MainFrame {
 	ExecutorService iconExecutor;
 	JLabel folderStatus;
 	Preferences prefs;
-	String currentMC = "1.21.5";
+	String currentMC = "1.21.4";
 	String currentLoader = "fabric";
 	Set<ModEntry> selectedMods = new HashSet<>();
 	Map<Integer, Set<ModEntry>> pageSelections = new HashMap<>();
@@ -125,7 +125,7 @@ public class MainFrame {
 			downloadFolder = new File(lastFolder);
 			folderStatus.setText("Folder: " + lastFolder);
 		}
-		currentMC = prefs.get("lastMC", "1.21.5");
+		currentMC = prefs.get("lastMC", "1.21.4");
 		currentLoader = prefs.get("lastLoader", "fabric");
 
 		frame.setVisible(true);
