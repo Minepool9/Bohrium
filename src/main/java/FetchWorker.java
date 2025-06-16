@@ -1,20 +1,19 @@
 // FetchWorker.java
 import org.json.JSONArray;
 import org.json.JSONObject;
+import javax.imageio.ImageIO;
 import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
 import javax.swing.JList;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import java.awt.Image;
-import java.awt.Toolkit;
-import java.io.ByteArrayOutputStream;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -32,9 +31,9 @@ public class FetchWorker extends SwingWorker<Void, ModEntry> {
     private int maxPages = Integer.MAX_VALUE;
 
     public FetchWorker(int currentPage, int perPage, String currentMC, String currentLoader,
-                      DefaultListModel<ModEntry> listModel, Set<ModEntry> selectedMods,
-                      JList<ModEntry> modList, ExecutorService iconExecutor, 
-                      Runnable updateNavCallback) {
+                       DefaultListModel<ModEntry> listModel, Set<ModEntry> selectedMods,
+                       JList<ModEntry> modList, ExecutorService iconExecutor,
+                       Runnable updateNavCallback) {
         this.currentPage = currentPage;
         this.perPage = perPage;
         this.currentMC = currentMC;
@@ -47,8 +46,7 @@ public class FetchWorker extends SwingWorker<Void, ModEntry> {
     }
 
     private String fetchContent(String urlStr) throws IOException {
-        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(urlStr).openConnection();
-        conn.setRequestMethod("GET");
+        URLConnection conn = new URL(urlStr).openConnection();
         conn.setRequestProperty("User-Agent", "Bohrium/1.0");
         conn.setConnectTimeout(5000);
         conn.setReadTimeout(5000);
@@ -60,12 +58,15 @@ public class FetchWorker extends SwingWorker<Void, ModEntry> {
         }
     }
 
+    @Override
     protected Void doInBackground() {
         try {
             String raw = "[[\"project_type:mod\"],[\"versions:" + currentMC + "\"],[\"categories:" + currentLoader + "\"]]";
             String facets = URLEncoder.encode(raw, "UTF-8");
             int offset = (currentPage - 1) * perPage;
-            JSONObject obj = new JSONObject(fetchContent("https://api.modrinth.com/v2/search?limit=" + perPage + "&offset=" + offset + "&facets=" + facets));
+            JSONObject obj = new JSONObject(fetchContent(
+                "https://api.modrinth.com/v2/search?limit=" + perPage +
+                "&offset=" + offset + "&facets=" + facets));
             maxPages = (int) Math.ceil((double) obj.getInt("total_hits") / perPage);
             JSONArray hits = obj.getJSONArray("hits");
             for (int i = 0; i < hits.length(); i++) {
@@ -73,12 +74,15 @@ public class FetchWorker extends SwingWorker<Void, ModEntry> {
                 String projectId = mod.getString("project_id");
                 ModEntry entry = new ModEntry(mod.getString("title"), mod.getString("slug"), projectId);
                 publish(entry);
-                if (mod.has("icon_url") && !mod.isNull("icon_url")) iconExecutor.submit(() -> loadIcon(entry, mod.getString("icon_url")));
+                if (mod.has("icon_url") && !mod.isNull("icon_url")) {
+                    iconExecutor.submit(() -> loadIcon(entry, mod.getString("icon_url")));
+                }
             }
         } catch (Exception ignored) {}
         return null;
     }
 
+    @Override
     protected void process(List<ModEntry> chunks) {
         for (ModEntry entry : chunks) {
             listModel.addElement(entry);
@@ -88,6 +92,7 @@ public class FetchWorker extends SwingWorker<Void, ModEntry> {
         }
     }
 
+    @Override
     protected void done() {
         updateNavCallback.run();
         modList.repaint();
@@ -96,25 +101,23 @@ public class FetchWorker extends SwingWorker<Void, ModEntry> {
     private void loadIcon(ModEntry entry, String url) {
         try {
             URLConnection conn = new URL(url).openConnection();
+            conn.setRequestProperty("User-Agent", "Bohrium/1.0");
             conn.setConnectTimeout(3000);
             conn.setReadTimeout(3000);
-            conn.setRequestProperty("User-Agent", "Bohrium/1.0");
-            try (InputStream in = conn.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                byte[] buf = new byte[4096];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                Image img = Toolkit.getDefaultToolkit().createImage(out.toByteArray()).getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-                entry.icon = new ImageIcon(img);
-                SwingUtilities.invokeLater(() -> { 
-                    int idx = listModel.indexOf(entry); 
-                    if (idx != -1) { 
+            try (InputStream in = conn.getInputStream()) {
+                BufferedImage img = ImageIO.read(in);
+                Image scaled = img.getScaledInstance(64, 64, Image.SCALE_SMOOTH);
+                entry.icon = new ImageIcon(scaled);
+                SwingUtilities.invokeLater(() -> {
+                    int idx = listModel.indexOf(entry);
+                    if (idx != -1) {
                         listModel.setElementAt(entry, idx);
                         if (selectedMods.contains(entry)) {
                             modList.repaint();
                         }
-                    } 
+                    }
                 });
             }
-        } catch (Exception ignored) {}
+        } catch (IOException ignored) {}
     }
 }
