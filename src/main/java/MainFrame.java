@@ -1,13 +1,18 @@
-// MainFrame.java
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.File;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.prefs.Preferences;
+import javax.net.ssl.HttpsURLConnection;
+
+import org.json.*;
 
 public class MainFrame {
 	JFrame frame;
@@ -26,6 +31,7 @@ public class MainFrame {
 	Set<ModEntry> selectedMods = new HashSet<>();
 	Map<Integer, Set<ModEntry>> pageSelections = new HashMap<>();
 	JList<ModEntry> modList;
+	List<String> releaseVersions = new ArrayList<>();
 
 	public void createAndShowGUI() {
 		prefs = Preferences.userNodeForPackage(MainFrame.class);
@@ -129,6 +135,7 @@ public class MainFrame {
 
 		frame.setVisible(true);
 		updateNavButtons();
+		loadReleaseVersions();
 		if (downloadFolder != null) fetchMods();
 	}
 
@@ -154,7 +161,7 @@ public class MainFrame {
 		});
 		JLabel mcLabel = new JLabel("MC Version:");
 		dialog.add(mcLabel);
-		JComboBox<String> mcCombo = new JComboBox<>(new String[] {"1.21.4", "1.20.4", "1.19.4", "1.18.2", "1.17.1"});
+		JComboBox<String> mcCombo = new JComboBox<>(releaseVersions.toArray(new String[0]));
 		mcCombo.setSelectedItem(currentMC);
 		dialog.add(mcCombo);
 		JLabel loaderLabel = new JLabel("Loader:");
@@ -213,5 +220,29 @@ public class MainFrame {
 		if (allSelected.isEmpty()) return;
 		new ConfirmFrame(new ArrayList<>(allSelected), selectedMods, pageSelections,
 						 downloadFolder, frame, currentMC, currentLoader).setVisible(true);
+	}
+
+	void loadReleaseVersions() {
+		try {
+			URL url = new URL("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
+			HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+			con.setRequestMethod("GET");
+			con.connect();
+			BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+			StringBuilder sb = new StringBuilder();
+			String line;
+			while ((line = reader.readLine()) != null) sb.append(line);
+			JSONObject root = new JSONObject(sb.toString());
+			JSONArray versions = root.getJSONArray("versions");
+			for (int i = 0; i < versions.length(); i++) {
+				JSONObject ver = versions.getJSONObject(i);
+				if ("release".equals(ver.getString("type"))) {
+					releaseVersions.add(ver.getString("id"));
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			releaseVersions.addAll(List.of("1.21.4", "1.20.6", "1.20.1", "1.19.2", "1.18.2")); // fallback
+		}
 	}
 }
