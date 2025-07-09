@@ -32,6 +32,6 @@ warning: kinda my second "big" java project, except bad code, like a lot.
 - [ ] add a search bar
 - [ ] add more mc versions
 - [ ] add the ability to select mod versions to basically downgrade
-- [ ] add a fucking mod manager into this
+- [x] add a fucking mod manager into this
 - [ ] add a notification for if you are offline
 - [ ] idk? probably not adding bugs?
